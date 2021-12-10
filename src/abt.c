@@ -60,9 +60,9 @@ void A_output(struct msg message)
 	packet.seqnum = a_seqnum;
 	packet.checksum = checksum(packet);
 	last_packet = packet;
-   printf("sending message to B\n");
+    printf("sending %d packet to B\n", a_seqnum);
 	a_state = 0;
-	starttimer(A, 25.0);
+	starttimer(A, 20.0);
 	tolayer3(A, packet);
 }
  
@@ -70,11 +70,12 @@ void A_output(struct msg message)
 void A_input(struct pkt packet)
 {
 	if(a_seqnum != packet.acknum && last_acknum != packet.acknum) {
-		starttimer(A, 25.0);
+		starttimer(A, 20.0);
 		tolayer3(A, last_packet);
 	} else if(last_acknum == packet.acknum) {
 		// do nothing
 	} else {
+		printf("received %d ack from B\n", packet.acknum);
 		stoptimer(A);
 		last_acknum = a_seqnum;
 		a_seqnum = 1-a_seqnum;
@@ -85,6 +86,7 @@ void A_input(struct pkt packet)
 /* called when A's timer goes off */
 void A_timerinterrupt()
 {
+	printf(" timer interrupt called\n");
 	starttimer(A, 25.0);
 	tolayer3(A, last_packet);
 }
@@ -105,6 +107,7 @@ void B_input(struct pkt packet)
 	struct pkt ack_packet;
 	if(packet.checksum != checksum(packet)) {
 		//packet is corrupted
+		printf("packet is corrupted\n");
 		ack_packet.acknum = -1;
 		tolayer3(B, ack_packet);
 		return;
@@ -114,6 +117,7 @@ void B_input(struct pkt packet)
 		tolayer3(B, ack_packet);
 		return;
 	}
+	printf("packet %d received at B\n", b_seqnum);
 	tolayer5(B, packet.payload);
 	ack_packet.acknum = b_seqnum;
 	last_seqnum = packet.seqnum;
