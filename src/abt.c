@@ -112,6 +112,7 @@ void A_init()
 	a_state = 1;
 	idx=0;
 	iterate=0;
+	last_acknum=-1;
 }
  
 /* Note that with simplex transfer from a-to-B, there is no B_output() */
