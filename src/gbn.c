@@ -30,8 +30,8 @@ int b_seqnum, last_seqnum;
 struct pkt buffer_packets[BUFFER_SIZE];
 
 void send_message(){
-	while( next_seq < index && next_seq < base + N){
-		tolayer3(A, buffer_packets[nextseq]);
+	while( next_seqnum < index && next_seqnum < base + N){
+		tolayer3(A, buffer_packets[next_seqnum]);
 		if(base==next_seqnum){
 			starttimer(A, 20.0);
 		}
@@ -58,7 +58,7 @@ void A_output(struct msg message)
 {
 	/* if number of packets in the window is equal to 
 	 	the window size buffer the packet*/
-	
+	int i;
 	if( index == BUFFER_SIZE){
 		//buffer is full
 		return;
@@ -69,8 +69,8 @@ void A_output(struct msg message)
 		}
 		buffer_packets[index].payload[i]=message.data[i];
 	}
-	buffer_packets[index].seqnum=buffer;
-	buffer_packets[index].checksum = checksum(buffer_packets[buffer]);
+	buffer_packets[index].seqnum=index;
+	buffer_packets[index].checksum = checksum(buffer_packets[index]);
 	index++;
 	send_message();
 }
@@ -99,7 +99,7 @@ void A_timerinterrupt()
 	//re-send all the messages in the window
 	int i;
 	for(i=base;i<next_seqnum;i++){
-		tolayer3(A, buffer[i]);
+		tolayer3(A, buffer_packets[i]);
 	}
 	starttimer(A, 20.0);
 }  
