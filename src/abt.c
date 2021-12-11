@@ -19,10 +19,14 @@
  
 #define A 0
 #define B 1
+#define BUFFER_SIZE 1000
  
 int a_seqnum, b_seqnum, last_seqnum, last_acknum;
 int a_state;  // value would be 0 (waiting for ACK) or 1 (waiting for LAYER5)
 struct pkt last_packet; //used to send last packet again if no ack is received
+struct pkt buffer[BUFFER_SIZE];
+int idx;
+int iterate;
  
 int checksum(struct pkt packet){
 	int checksum=0, i;
@@ -37,33 +41,42 @@ int checksum(struct pkt packet){
 	return checksum;
 }
  
+void send_message(){
+	if(a_state == 0){
+		return;
+	} 
+	else if(iterate<idx){
+		last_packet = buffer_packets[iterate];
+		a_state = 0;
+		a_seqnum=buffer_packets[iterate];
+		starttimer(A, 20.0);
+		tolayer3(A, buffer_packets[iterate] );
+		iterate++;
+	}
+
+}
 /* called from layer 5, passed the data to be sent to other side */
 void A_output(struct msg message)
 {
-	/*if waiting for ACK
-	 then buffer the message and send later*/
-	if(a_state == 0 ) {
-		return;
-	}
 	int i;
-	struct pkt packet;
- 
+
     for(i=0;i<20;i++) {
 		if(message.data[i]=='\0') {
 	    	break;
 		}
  
-    	packet.payload[i] = message.data[i];
+    	buffer_packets[idx].payload[i] = message.data[i];
 	}
-	packet.payload[i]='\0';
- 
-	packet.seqnum = a_seqnum;
-	packet.checksum = checksum(packet);
-	last_packet = packet;
-    printf("sending %d packet to B\n", a_seqnum);
-	a_state = 0;
-	starttimer(A, 20.0);
-	tolayer3(A, packet);
+	buffer_packets[idx].payload[i]='\0';
+	if(idx==0){
+		buffer_packets[idx].seqnum = 0;
+	} else{
+		buffer_packets[idx].seqnum = 1-buffer_packets[idx-1].seqnum;
+	}
+ 	
+	buffer_packets[idx].checksum = checksum(packet);
+	idx++;
+	send_message();
 }
  
 /* called from layer 3, when a packet arrives for layer 4 */
@@ -73,13 +86,13 @@ void A_input(struct pkt packet)
 		starttimer(A, 20.0);
 		tolayer3(A, last_packet);
 	} else if(last_acknum == packet.acknum) {
-		// do nothing
+		// dupliate ack do nothing
 	} else {
 		printf("received %d ack from B\n", packet.acknum);
 		stoptimer(A);
-		last_acknum = a_seqnum;
-		a_seqnum = 1-a_seqnum;
+		last_acknum = packet.acknum;
 		a_state=1;
+		send_message();
 	}
 }
  
@@ -97,6 +110,8 @@ void A_init()
 {
 	a_seqnum = 0;
 	a_state = 1;
+	idx=0;
+	iterate=0;
 }
  
 /* Note that with simplex transfer from a-to-B, there is no B_output() */
