@@ -24,7 +24,7 @@
 int a_seqnum, b_seqnum, last_seqnum, last_acknum;
 int a_state;  // value would be 0 (waiting for ACK) or 1 (waiting for LAYER5)
 struct pkt last_packet; //used to send last packet again if no ack is received
-struct pkt buffer[BUFFER_SIZE];
+struct pkt buffer_packets[BUFFER_SIZE];
 int idx;
 int iterate;
  
@@ -48,7 +48,7 @@ void send_message(){
 	else if(iterate<idx){
 		last_packet = buffer_packets[iterate];
 		a_state = 0;
-		a_seqnum=buffer_packets[iterate];
+		a_seqnum=buffer_packets[iterate].seqnum;
 		starttimer(A, 20.0);
 		tolayer3(A, buffer_packets[iterate] );
 		iterate++;
@@ -74,7 +74,7 @@ void A_output(struct msg message)
 		buffer_packets[idx].seqnum = 1-buffer_packets[idx-1].seqnum;
 	}
  	
-	buffer_packets[idx].checksum = checksum(packet);
+	buffer_packets[idx].checksum = checksum(buffer_packets[idx]);
 	idx++;
 	send_message();
 }
