@@ -16,7 +16,7 @@
 
 /********* STUDENTS WRITE THE NEXT SEVEN ROUTINES *********/
 
-# define BUFFER_SIZE 10000
+#define BUFFER_SIZE 50000
 #define A 0
 #define B 1
 
@@ -25,12 +25,12 @@
 // N is the size of the window
 int base, next_seqnum, N;
 //  for accessing the buffer
-int index;
+int idx;
 int b_seqnum, last_seqnum;
 struct pkt buffer_packets[BUFFER_SIZE];
 
 void send_message(){
-	while( next_seqnum < index && next_seqnum < base + N){
+	while( next_seqnum < idx && next_seqnum < base + N){
 		tolayer3(A, buffer_packets[next_seqnum]);
 		if(base==next_seqnum){
 			starttimer(A, 20.0);
@@ -43,7 +43,7 @@ void send_message(){
 int checksum(struct pkt packet){
 	int checksum=0,i;
 	for( i=0;i<20;i++){
-	    if(packet.payload[i]='\0') {
+	    if(packet.payload[i]=='\0') {
 	    	break;
 		}
 		checksum+=packet.payload[i];
@@ -59,7 +59,7 @@ void A_output(struct msg message)
 	/* if number of packets in the window is equal to 
 	 	the window size buffer the packet*/
 	int i;
-	if( index == BUFFER_SIZE){
+	if( idx == BUFFER_SIZE){
 		//buffer is full
 		return;
 	}
@@ -67,11 +67,12 @@ void A_output(struct msg message)
 		if(message.data[i]=='\0') {
 	    	break;
 		}
-		buffer_packets[index].payload[i]=message.data[i];
+		buffer_packets[idx].payload[i]=message.data[i];
 	}
-	buffer_packets[index].seqnum=index;
-	buffer_packets[index].checksum = checksum(buffer_packets[index]);
-	index++;
+	buffer_packets[idx].payload[i]='\0';
+	buffer_packets[idx].seqnum=idx;
+	buffer_packets[idx].checksum = checksum(buffer_packets[idx]);
+	idx++;
 	send_message();
 }
 
@@ -87,10 +88,11 @@ void A_input(struct pkt packet)
 		/*All the elements in the window are sent so stop the timer 
 		and call send_window again to send if there are messages just received*/
 		stoptimer(A);
+		send_message();
 	} else{
 		starttimer(A, 20.0);
 	}
-	send_message();
+	//send_message();
 }
 
 /* called when A's timer goes off */
@@ -111,7 +113,7 @@ void A_init()
 	base=0;
 	next_seqnum=0;
 	N=getwinsize();
-	index=0;
+	idx=0;
 }
 
 /* Note that with simplex transfer from a-to-B, there is no B_output() */
@@ -120,7 +122,7 @@ void A_init()
 void B_input(struct pkt packet)
 {
 	struct pkt ack_packet;
-	if(packet.checksum!=getchecksum(packet)){
+	if(packet.checksum!=checksum(packet)){
 		//corrupt packet, sending the previous ack value
 		ack_packet.acknum=last_seqnum;
 		tolayer3(B, ack_packet);		
@@ -143,5 +145,5 @@ void B_input(struct pkt packet)
 void B_init()
 {
 	b_seqnum=0;
-	last_seqnum=0;
+	last_seqnum=-1;
 }
