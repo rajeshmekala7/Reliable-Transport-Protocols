@@ -18,6 +18,7 @@
 #define BUFFER_SIZE 10000
 #define A 0
 #define B 1
+#define RTT 25.0
 
 // send_base is the sequence number of the oldest unacknowledged packet
 // next_seqnum is the smallest unused sequence number
@@ -33,6 +34,7 @@ struct pkt buffer_received_packets[BUFFER_SIZE];
 /*declaring an array for ack's received so that we can send
 send all the unack packets again*/
 int a_ack[BUFFER_SIZE];
+int time[BUFFER_SIZE];
 
 int rcv_base;
 int b_ack[BUFFER_SIZE];
@@ -51,16 +53,16 @@ int checksum(struct pkt packet){
 }
 
 void send_message(){
-	while( next_seqnum < idx && next_seqnum < send_base + N){
+	while( next_seqnum >= send_base && next_seqnum < send_base + N){
 		tolayer3(A, buffer_packets[next_seqnum]);
-		if(send_base==next_seqnum){
+		time[next_seqnum]=get_sim_time();
+	}
+	if(send_base==next_seqnum){
 			//check when to start the timer
 			starttimer(A, 20.0);
-		}
-		next_seqnum++;
-	}   		
+	}   
+	next_seqnum++;	
 }
-
 
 /* called from layer 5, passed the data to be sent to other side */
 void A_output(struct msg message)
@@ -90,26 +92,54 @@ void A_input(struct pkt packet)
 {
 	int i;
 	if(packet.acknum < send_base){
-		//duplicate ACK
+		/*duplicate ACK && -1 for corrupted packets, timer interrupted will be called in this case 
+		and packet will be resent*/ 
 		return;
 	}  
-	else if(packet.acknum >= send_base && packet.acknum < next_seqnum){
+	else if(packet.acknum >= send_base && packet.acknum < send_base + N){
+		//stop the timer
+		stoptimer(A);
+		
+		//storing the acknowledgement information
 		a_ack[packet.acknum]=1;
+		
+		//
+		int i;
+		for(i=send_base;i<next_seqnum;i++) {
+		  if(a_ack[i] == 0 && get_sim_time() - time[i] < RTT)
+	      {
+	          int time_left = RTT - (get_sim_time() - time[i]);
+	          starttimer(0, time_left);
+	          break;
+	      }
+		}
+		
+		for(i = send_base; i < next_seqnum; i++)
+	    {
+	     if(a_ack[i] == 0  && get_sim_time() - time[i] > RTT)
+	      {
+	        tolayer3(0, buffer_packets[i]);
+	        time[i] = get_sim_time();
+	      }
+	
+	    }
+		
+		//changing the send_base value
 		for(i=send_base;i<next_seqnum;i++){
-			if(a_ack[i]==0){
+			if(a_ack[i]==1){
 				send_base=i;
-				break;
+				if(send_base + N < next_seqnum && a_ack[send_base + N] == 0)
+		          {
+		            tolayer3(0, buffer_packets[send_base + N]);
+		            time[send_base + N] = get_sim_time();
+		          }	
 			}
 		}
-		//cross check this part
-		if(send_base==next_seqnum){
-			/*All the elements in the window are sent so stop the timer 
-			and call send_window again to send if there are messages just received*/
-			stoptimer(A);
-			send_message();
-		} else{
-			starttimer(A, 20.0);
-		}
+		
+		
+		
+		//send remaining messages in buffer
+	//	send_message();	
 	}
 
 }
@@ -122,6 +152,7 @@ void A_timerinterrupt()
 		if(a_ack[i]==0){
 			tolayer3(A, buffer_packets[i]);
 			starttimer(A, 20.0);
+			time[i]=get_sim_time();
 			break;
 		}
 	}
@@ -139,6 +170,7 @@ void A_init()
 	int i;
 	for(i=0;i<BUFFER_SIZE;i++){
 		a_ack[i]=0;
+		time[i]=-1;
 	}
 }
 
@@ -156,10 +188,18 @@ void B_input(struct pkt packet)
 		return;
 	} 
 	if(packet.seqnum >= rcv_base && packet.seqnum < rcv_base+N-1){	
+		
+		//sending the ack
 		ack_packet.acknum=packet.seqnum;
 		tolayer3(B,ack_packet);
+		
+		//storing the acknowledgement information
 		b_ack[packet.seqnum]=1;
+		
+		//storing the packet
 		buffer_received_packets[packet.seqnum]=packet;
+	
+		//sending the message to layer5 if they are received in order
 		for(i=rcv_base;i<rcv_base+N-1;i++){
 			if(b_ack[i]==0){
 				break;
