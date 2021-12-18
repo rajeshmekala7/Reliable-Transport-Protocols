@@ -122,7 +122,7 @@ void A_init()
  	next_seqnum=0;
  	N=getwinsize();
  	idx=0;
-	for(i=0;i<BUFFER_SIZE;i++){
+	for(int i=0;i<BUFFER_SIZE;i++){
 		a_ack[i]=0;
 	}
 }
